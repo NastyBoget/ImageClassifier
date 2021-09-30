@@ -55,7 +55,6 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
 @app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
 def image_file(filename1, filename2, bbox1, bbox2):
     # bbox = {"left", "top", "width", "height"}
-    print(filename1, filename2)
     bbox1 = json.loads(bbox1)
     bbox2 = json.loads(bbox2)
     paired_filename = get_paired_picture(os.path.join("images", filename1),
@@ -100,7 +99,7 @@ def read_next_task() -> Optional[tuple]:
         lines_num = len(doc["data"])
         doc_name = doc["doc_name"]
         # consider first pair for current document
-        if (not completed_tasks or not np.any(map(lambda x: x.startswith(doc_name), completed_tasks.keys()))) and lines_num > 1:  # noqa
+        if (not completed_tasks or not np.any(map(lambda x: x.startswith(doc_name), completed_tasks.keys()))) and lines_num > 1:  # TODO
             return make_one_task(doc_name=doc_name, line1=doc["data"][0], line2=doc["data"][1],
                                  default_label=default_label, instruction=instruction)
 
@@ -126,7 +125,7 @@ def read_next_task() -> Optional[tuple]:
             for c_task_id in completed_task_ids_for_doc[::-1]:
                 if c_task_id.endswith(first_line_uid):
                     new_first_line_uid = c_task_id.split('_')[-2]
-                    if completed_tasks[c_task_id]["labeled"][-1] == "greater":
+                    if completed_tasks[c_task_id]["labeled"][-1] == "less":
                         new_first_line_id = find_line(doc["data"], new_first_line_uid)
                         return make_one_task(doc_name=doc_name,
                                              line1=doc["data"][new_first_line_id],
@@ -143,7 +142,7 @@ def read_next_task() -> Optional[tuple]:
 
 def find_line(lines: List[dict], line_uid: str) -> Optional[int]:
     for i, line in enumerate(lines):
-        if str(line["line_uid"]) == line_uid:
+        if line["line_uid"] == line_uid:
             return i
 
 
