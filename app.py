@@ -1,20 +1,66 @@
 import os
 import os.path
-import random
 import json
 import hashlib
 import uuid
+from typing import Optional, List
 
 from flask import Flask
 from flask import request, redirect, send_from_directory
-
+from copy import deepcopy
+import PIL
+from PIL import Image, ImageDraw
+import numpy as np
 
 app = Flask(__name__)
 
 
-@app.route('/<path:filename>')
-def image_file(filename):
-    return send_from_directory(".", filename)
+def draw_rectangle(image: PIL.Image,
+                   x_top_left: int,
+                   y_top_left: int,
+                   width: int,
+                   height: int,
+                   color: tuple = (0, 0, 0)) -> PIL.Image:
+    if color == "black":
+        color = (0, 0, 0)
+    source_img = deepcopy(image).convert("RGBA")
+
+    draw = ImageDraw.Draw(source_img)
+    x_bottom_right = x_top_left + width + 5
+    y_bottom_right = y_top_left + height + 5
+    start_point = (x_top_left - 5, y_top_left - 5)
+    end_point = (x_bottom_right, y_bottom_right)
+    draw.rectangle((start_point, end_point), outline=color, width=5)
+    return source_img
+
+
+def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict) -> str:
+    # draw bbox1
+    # draw bbox2
+    # stack pictures
+    with Image.open(img_name1) as img1:
+        r_img1 = draw_rectangle(img1, bbox1["left"], bbox1["top"], bbox1["width"], bbox1["height"], color=(255, 0, 0))
+    with Image.open(img_name2) as img2:
+        r_img2 = draw_rectangle(img2, bbox2["left"], bbox2["top"], bbox2["width"], bbox2["height"], color=(0, 0, 255))
+    if r_img1.height != r_img2.height:
+        r_img2 = r_img2.resize((r_img2.width * r_img1.height // r_img2.height, r_img1.height))
+    paired_img = Image.fromarray(np.concatenate((np.array(r_img1), np.array(r_img2)), axis=1))
+    img_name = "r_{}.png".format(os.path.splitext(os.path.basename(img_name1))[0])
+    path = os.path.join("images", img_name)
+    with open(path, "wb") as f:
+        paired_img.save(fp=f, format="PNG")
+    return path
+
+
+@app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
+def image_file(filename1, filename2, bbox1, bbox2):
+    # bbox = {"left", "top", "width", "height"}
+    print(filename1, filename2)
+    bbox1 = json.loads(bbox1)
+    bbox2 = json.loads(bbox2)
+    paired_filename = get_paired_picture(os.path.join("images", filename1),
+                                         os.path.join("images", filename2), bbox1, bbox2)
+    return send_from_directory(".", paired_filename)
 
 
 @app.route('/js/<filename>')
@@ -41,31 +87,71 @@ def get_by_key_list(task, keys):
     return value
 
 
-def read_tasks():
+def read_next_task() -> Optional[tuple]:
+    completed_tasks = get_completed_tasks()
+    default_label = "equal"
+    instruction = ""
+
     with open(os.path.abspath(config["input_path"]), "r", encoding='utf-8') as f:
         tasks = json.load(f)
 
-    completed_tasks = get_completed_tasks()
-    available_tasks = []
+    # consider all possible pairs, previous lines first in uid
+    for doc_id, doc in tasks.items():
+        lines_num = len(doc["data"])
+        doc_name = doc["doc_name"]
+        # consider first pair for current document
+        if (not completed_tasks or not np.any(map(lambda x: x.startswith(doc_name), completed_tasks.keys()))) and lines_num > 1:  # noqa
+            return make_one_task(doc_name=doc_name, line1=doc["data"][0], line2=doc["data"][1],
+                                 default_label=default_label, instruction=instruction)
 
-    for task_id, task in tasks.items():
-        if task_id in completed_tasks:
-            continue
+        # find last comparison for document
+        # TODO order dict
+        completed_task_ids_for_doc = [c_task_id for c_task_id in completed_tasks if c_task_id.startswith(doc_name)]
+        last_task_id = completed_task_ids_for_doc[-1]
+        last_task_label = completed_tasks[last_task_id]['labeled'][-1]
+        last_line_uid = completed_task_ids_for_doc[-1].split('_')[-1]
 
-        img_name = get_by_key_list(task, config["image_key"])
-        default_label = get_by_key_list(task, config["default_label_key"])
+        current_line_id = find_line(doc["data"], last_line_uid)
+        if last_task_label == "equal" or last_task_label == "less":
+            if current_line_id == lines_num - 1:
+                continue
+            return make_one_task(doc_name=doc_name,
+                                 line1=doc["data"][current_line_id],
+                                 line2=doc["data"][current_line_id + 1],
+                                 default_label=default_label, instruction=instruction)
+        elif last_task_label == "greater":
+            # find the given line
+            first_line_uid = completed_task_ids_for_doc[-1].split('_')[-2]
+            # consider lines in reverse order
+            for c_task_id in completed_task_ids_for_doc[::-1]:
+                if c_task_id.endswith(first_line_uid):
+                    new_first_line_uid = c_task_id.split('_')[-2]
+                    if completed_tasks[c_task_id]["labeled"][-1] == "greater":
+                        new_first_line_id = find_line(doc["data"], new_first_line_uid)
+                        return make_one_task(doc_name=doc_name,
+                                             line1=doc["data"][new_first_line_id],
+                                             line2=doc["data"][current_line_id],
+                                             default_label=default_label, instruction=instruction)
+                    first_line_uid = new_first_line_uid
+            if current_line_id < lines_num - 1:
+                return make_one_task(doc_name=doc_name,
+                                     line1=doc["data"][current_line_id],
+                                     line2=doc["data"][current_line_id + 1],
+                                     default_label=default_label, instruction=instruction)
+    return None
 
-        instruction = ""
 
-        if "task_instruction_key" in config:
-            try:
-                instruction = "<h3>Task instruction</h3>" + get_by_key_list(task, config["task_instruction_key"])
-            except:
-                pass
+def find_line(lines: List[dict], line_uid: str) -> Optional[int]:
+    for i, line in enumerate(lines):
+        if str(line["line_uid"]) == line_uid:
+            return i
 
-        available_tasks.append({"id": task_id, "img": img_name, "label": default_label, "instruction": instruction})
 
-    return available_tasks
+def make_one_task(doc_name: str, line1: dict, line2: dict, default_label: str, instruction: str) -> tuple:
+    task_id = "{}_{}_{}".format(doc_name, line1["line_uid"], line2["line_uid"])
+    return task_id, {"img": (line1["img_name"], line2["img_name"],
+                             line1["bbox"], line2["bbox"]),
+                     "label": default_label, "instruction": instruction}
 
 
 def get_completed_tasks():
@@ -87,6 +173,8 @@ def save_completed_tasks(completed_tasks):
 
 def make_classifier(task_id, title, image, default_label, multiclass, task_instruction):
     labels = []
+    image = "/{}/{}/{}/{}".format(os.path.join(image[0]), os.path.join(image[1]),
+                                  json.dumps(image[2]), json.dumps(image[3]))
 
     for label_info in config["labels"]:
         label = label_info["label"]
@@ -116,7 +204,7 @@ def make_classifier(task_id, title, image, default_label, multiclass, task_instr
         <body>
             <div class="classifier">
                 <div class="classifier-img" id="img">
-                    <img src={image}>
+                    <img src='{image}'>
                 </div>
 
                 <div class="classifier-controls">
@@ -147,7 +235,7 @@ def make_classifier(task_id, title, image, default_label, multiclass, task_instr
             <script src="js/classifier.js?v={js}"></script>
             <script> 
                 const MULTICLASS = {multiclass};
-                const TASK_ID = {task_id};
+                const TASK_ID = '{task_id}';
                 const REQUIRE_CONFIRMATION = {confirm_required};
                 const LABELS = [
                     {labels}
@@ -212,23 +300,18 @@ def make_labeled(labeled_tasks):
 
 @app.route('/', methods=['GET'])
 def classify_image():
-    available_tasks = read_tasks()
+    available_task = read_next_task()
 
-    if len(available_tasks) == 0:  # если их нет, то и размечать нечего
+    if available_task is None:  # если их нет, то и размечать нечего
         return '''
         <p>Размечать нечего</p>
         <h1><a href="/get_results/{uid}">Результаты</a></h1>
         '''.format(uid=uuid.uuid1())
 
-    if config["sampling"] in ["random", "shuffle"]:
-        task = random.choice(available_tasks)
-    elif config["sampling"] == "sequential":
-        task = available_tasks[0]
-    else:
-        raise ValueError("Invalid sampling mode")
-
-    title = "Lost: " + str(len(available_tasks)) + " | " + config["title"]
-    return make_classifier(task["id"], title, task["img"], task["label"], config["multiclass"], task.get("instruction", ""))
+    task_id, task = available_task
+    title = config["title"]
+    return make_classifier(task_id, title, task["img"], task["label"], config["multiclass"],
+                           task.get("instruction", ""))
 
 
 @app.route('/save')
@@ -236,11 +319,8 @@ def save_file():
     task_id = request.args.get('task_id')
     labels = request.args.get('labels')
 
-    with open(config["input_path"], "r", encoding='utf-8') as f:
-        tasks = json.load(f)
-
     completed_tasks = get_completed_tasks()
-    completed_tasks[task_id] = tasks[task_id]  # добавляем выполненное задание
+    completed_tasks[task_id] = {}  # добавляем выполненное задание
     completed_tasks[task_id][config["result_key"]] = labels.split(';')
 
     save_completed_tasks(completed_tasks)
@@ -317,6 +397,8 @@ def get_config(filename: str):
 if __name__ == '__main__':
     try:
         config = get_config('config.json')
+        if os.path.isfile(os.path.abspath(config["intermediate_path"])):
+            os.remove(os.path.abspath(config["intermediate_path"]))
         host = "0.0.0.0"
         port = config["port"]
 
@@ -328,6 +410,6 @@ if __name__ == '__main__':
             with open(config["output_path"], "w", encoding='utf-8') as f:
                 f.write("{\n}")
 
-        app.run(debug=config.get("debug", False), host=host,  port=port)
+        app.run(debug=config.get("debug", False), host=host, port=port)
     except ValueError as error:
         print(error)
