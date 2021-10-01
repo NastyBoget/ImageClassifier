@@ -3,10 +3,11 @@ import json
 import os
 import os.path
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from flask import Flask
 from flask import request, redirect, send_from_directory
+from werkzeug import Response
 
 from image_maker import get_paired_picture
 from task_maker import TaskMaker
@@ -15,7 +16,7 @@ app = Flask(__name__)
 
 
 @app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
-def image_file(filename1: str, filename2: str, bbox1: str, bbox2: str):
+def image_file(filename1: str, filename2: str, bbox1: str, bbox2: str) -> Any:
     # bbox = {"left", "top", "width", "height"}
     bbox1 = json.loads(bbox1)
     bbox2 = json.loads(bbox2)
@@ -25,21 +26,21 @@ def image_file(filename1: str, filename2: str, bbox1: str, bbox2: str):
 
 
 @app.route('/js/<filename>')
-def js_file(filename: str):
+def js_file(filename: str) -> Any:
     return send_from_directory(app.config['JS_FOLDER'], filename)
 
 
 @app.route('/css/<filename>')
-def css_file(filename: str):
+def css_file(filename: str) -> Any:
     return send_from_directory(app.config['CSS_FOLDER'], filename)
 
 
 @app.route('/fonts/<filename>')
-def font_file(filename):
+def font_file(filename: str) -> Any:
     return send_from_directory(app.config['FONTS_FOLDER'], filename)
 
 
-def get_by_key_list(task: dict, keys: List[str]):
+def get_by_key_list(task: dict, keys: list) -> Any:
     value = task
 
     for key in keys:
@@ -228,7 +229,7 @@ def classify_image() -> str:
 
 
 @app.route('/save')
-def save_file():
+def save_file() -> Response:
     task_id = request.args.get('task_id')
     labels = request.args.get('labels')
 
@@ -252,7 +253,7 @@ def view_labeled() -> str:
 
 
 @app.route('/restore')
-def restore_task():
+def restore_task() -> Response:
     task_id = request.args.get('task_id')
     completed_tasks = get_completed_tasks()
     del completed_tasks[task_id]
@@ -263,7 +264,7 @@ def restore_task():
 
 
 @app.route('/get_results/<uid>')
-def get_results(uid=None):
+def get_results(uid: str = None) -> Any:
     result_file = config["output_path"]
     if not os.path.isfile(result_file):
         return "Nothing to download!"
@@ -272,7 +273,7 @@ def get_results(uid=None):
     return send_from_directory(directory, filename, as_attachment=True)
 
 
-def check_key(config: dict, key: str, default_value=None) -> None:
+def check_key(config: dict, key: str, default_value: Any = None) -> None:
     if key not in config:
         if default_value is None:
             raise ValueError('{} is not set'.format(key))
