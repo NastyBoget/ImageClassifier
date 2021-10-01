@@ -1,4 +1,4 @@
-# ImageClassifier
+# ImageClassifier for comparing two pictures
 Implementation of images classifier in JS and Flask
 
 ## How to start labeling
