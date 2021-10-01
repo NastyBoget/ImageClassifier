@@ -53,7 +53,7 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
 
 
 @app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
-def image_file(filename1, filename2, bbox1, bbox2):
+def image_file(filename1: str, filename2: str, bbox1: str, bbox2: str):
     # bbox = {"left", "top", "width", "height"}
     bbox1 = json.loads(bbox1)
     bbox2 = json.loads(bbox2)
@@ -63,12 +63,12 @@ def image_file(filename1, filename2, bbox1, bbox2):
 
 
 @app.route('/js/<filename>')
-def js_file(filename):
+def js_file(filename: str):
     return send_from_directory(app.config['JS_FOLDER'], filename)
 
 
 @app.route('/css/<filename>')
-def css_file(filename):
+def css_file(filename: str):
     return send_from_directory(app.config['CSS_FOLDER'], filename)
 
 
@@ -77,7 +77,7 @@ def font_file(filename):
     return send_from_directory(app.config['FONTS_FOLDER'], filename)
 
 
-def get_by_key_list(task, keys):
+def get_by_key_list(task: dict, keys: List[str]):
     value = task
 
     for key in keys:
@@ -88,56 +88,78 @@ def get_by_key_list(task, keys):
 
 def read_next_task() -> Optional[tuple]:
     completed_tasks = get_completed_tasks()
-    default_label = "equal"
-    instruction = ""
+    default_label, instruction = "equal", ""
 
     with open(os.path.abspath(config["input_path"]), "r", encoding='utf-8') as f:
         tasks = json.load(f)
 
-    # consider all possible pairs, previous lines first in uid
     for doc_id, doc in tasks.items():
         lines_num = len(doc["data"])
+        if lines_num < 2:
+            continue
         doc_name = doc["doc_name"]
-        # consider first pair for current document
-        if (not completed_tasks or not np.any(map(lambda x: x.startswith(doc_name), completed_tasks.keys()))) and lines_num > 1:  # TODO
-            return make_one_task(doc_name=doc_name, line1=doc["data"][0], line2=doc["data"][1],
-                                 default_label=default_label, instruction=instruction)
-
-        # find last comparison for document
         # TODO order dict
         completed_task_ids_for_doc = [c_task_id for c_task_id in completed_tasks if c_task_id.startswith(doc_name)]
+        # consider first pair for current document
+        if len(completed_task_ids_for_doc) == 0:
+            return make_one_task(doc_name=doc_name, line1=doc["data"][0], line2=doc["data"][1],
+                                 default_label=default_label, instruction=instruction)
+        # find last comparison for document
         last_task_id = completed_task_ids_for_doc[-1]
         last_task_label = completed_tasks[last_task_id]['labeled'][-1]
         last_line_uid = completed_task_ids_for_doc[-1].split('_')[-1]
-
         current_line_id = find_line(doc["data"], last_line_uid)
-        if last_task_label == "equal" or last_task_label == "less":
+        if last_task_label == "other":
+            first_line_id = find_line_for_comparison(completed_task_ids_for_doc, completed_tasks,
+                                                     doc, prev_label="other")
+            if first_line_id is not None:
+                if current_line_id < lines_num - 1:
+                    return make_one_task(doc_name=doc_name,
+                                         line1=doc["data"][first_line_id], line2=doc["data"][current_line_id + 1],
+                                         default_label=default_label, instruction=instruction)
+                else:
+                    continue
+        if last_task_label != "greater":
             if current_line_id == lines_num - 1:
                 continue
             return make_one_task(doc_name=doc_name,
-                                 line1=doc["data"][current_line_id],
-                                 line2=doc["data"][current_line_id + 1],
+                                 line1=doc["data"][current_line_id], line2=doc["data"][current_line_id + 1],
                                  default_label=default_label, instruction=instruction)
-        elif last_task_label == "greater":
-            # find the given line
-            first_line_uid = completed_task_ids_for_doc[-1].split('_')[-2]
-            # consider lines in reverse order
-            for c_task_id in completed_task_ids_for_doc[::-1]:
-                if c_task_id.endswith(first_line_uid):
-                    new_first_line_uid = c_task_id.split('_')[-2]
-                    if completed_tasks[c_task_id]["labeled"][-1] == "less":
-                        new_first_line_id = find_line(doc["data"], new_first_line_uid)
-                        return make_one_task(doc_name=doc_name,
-                                             line1=doc["data"][new_first_line_id],
-                                             line2=doc["data"][current_line_id],
-                                             default_label=default_label, instruction=instruction)
-                    first_line_uid = new_first_line_uid
+        else:  # last_task_label == "greater"
+            first_line_id = find_line_for_comparison(completed_task_ids_for_doc, completed_tasks,
+                                                     doc, prev_label="greater")
+            if first_line_id is not None:
+                return make_one_task(doc_name=doc_name,
+                                     line1=doc["data"][first_line_id], line2=doc["data"][current_line_id],
+                                     default_label=default_label, instruction=instruction)
             if current_line_id < lines_num - 1:
                 return make_one_task(doc_name=doc_name,
-                                     line1=doc["data"][current_line_id],
-                                     line2=doc["data"][current_line_id + 1],
+                                     line1=doc["data"][current_line_id], line2=doc["data"][current_line_id + 1],
                                      default_label=default_label, instruction=instruction)
     return None
+
+
+def find_line_for_comparison(completed_task_ids_for_doc: List[str],
+                             completed_tasks: dict,
+                             doc: dict,
+                             prev_label: str) -> Optional[int]:
+    if prev_label == "greater":
+        # find the given line
+        first_line_uid = completed_task_ids_for_doc[-1].split('_')[-2]
+        # consider lines in reverse order
+        for c_task_id in completed_task_ids_for_doc[::-1]:
+            if c_task_id.endswith(first_line_uid):
+                new_first_line_uid = c_task_id.split('_')[-2]
+                if completed_tasks[c_task_id]["labeled"][-1] == "less":
+                    return find_line(doc["data"], new_first_line_uid)
+                first_line_uid = new_first_line_uid
+        return None
+    elif prev_label == "other":
+        for c_task_id in completed_task_ids_for_doc[::-1]:
+            if completed_tasks[c_task_id]["labeled"][-1] != "other":
+                new_first_line_uid = c_task_id.split('_')[-1]
+                return find_line(doc["data"], new_first_line_uid)
+        return None
 
 
 def find_line(lines: List[dict], line_uid: str) -> Optional[int]:
@@ -153,24 +175,25 @@ def make_one_task(doc_name: str, line1: dict, line2: dict, default_label: str, i
                      "label": default_label, "instruction": instruction}
 
 
-def get_completed_tasks():
+def get_completed_tasks() -> dict:
     with open(config["output_path"], 'r', encoding='utf-8') as f:
         completed_tasks = json.load(f)
 
     return completed_tasks
 
 
-def get_md5(filename):
+def get_md5(filename: str) -> str:
     with open(filename, 'rb') as f:
         return hashlib.md5(f.read()).hexdigest()
 
 
-def save_completed_tasks(completed_tasks):
+def save_completed_tasks(completed_tasks: dict) -> None:
     with open(config["output_path"], 'w', encoding='utf-8') as f:
         json.dump(completed_tasks, f, indent=2, ensure_ascii=False)
 
 
-def make_classifier(task_id, title, image, default_label, multiclass, task_instruction):
+def make_classifier(task_id: str, title: str, image: tuple,
+                    default_label: str, multiclass: bool, task_instruction: str) -> str:
     labels = []
     image = "/{}/{}/{}/{}".format(os.path.join(image[0]), os.path.join(image[1]),
                                   json.dumps(image[2]), json.dumps(image[3]))
@@ -257,7 +280,7 @@ def make_classifier(task_id, title, image, default_label, multiclass, task_instr
                labels=",\n".join(labels))
 
 
-def make_labeled(labeled_tasks):
+def make_labeled(labeled_tasks: dict) -> str:
     table = ''
 
     for task_id in labeled_tasks:
@@ -298,7 +321,7 @@ def make_labeled(labeled_tasks):
 
 
 @app.route('/', methods=['GET'])
-def classify_image():
+def classify_image() -> str:
     available_task = read_next_task()
 
     if available_task is None:  # если их нет, то и размечать нечего
@@ -328,7 +351,7 @@ def save_file():
 
 
 @app.route('/labeled')
-def view_labeled():
+def view_labeled() -> str:
     completed_tasks = get_completed_tasks()
 
     if len(completed_tasks) == 0:
@@ -358,7 +381,7 @@ def get_results(uid=None):
     return send_from_directory(directory, filename, as_attachment=True)
 
 
-def check_key(config: dict, key: str, default_value=None):
+def check_key(config: dict, key: str, default_value=None) -> None:
     if key not in config:
         if default_value is None:
             raise ValueError('{} is not set'.format(key))
@@ -367,7 +390,7 @@ def check_key(config: dict, key: str, default_value=None):
         print('Warning: "{0}" is not set. Changed to "{1}"'.format(key, default_value))
 
 
-def get_config(filename: str):
+def get_config(filename: str) -> dict:
     with open(os.path.join(os.path.dirname(__file__), filename), encoding='utf-8') as f:
         config = json.load(f)
 
@@ -396,8 +419,6 @@ def get_config(filename: str):
 if __name__ == '__main__':
     try:
         config = get_config('config.json')
-        if os.path.isfile(os.path.abspath(config["intermediate_path"])):
-            os.remove(os.path.abspath(config["intermediate_path"]))
         host = "0.0.0.0"
         port = config["port"]
 

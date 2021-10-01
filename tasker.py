@@ -35,8 +35,8 @@ import json
 import os
 from typing import List, Optional
 
-import pytesseract
 import pdf2image as p2i
+import pytesseract
 from PIL import Image
 from tqdm import tqdm
 
@@ -96,10 +96,11 @@ def imgs2data(img_paths: List[str], doc_name: str, img_dir: str) -> dict:
                             line_dict['text'] += ' '
                         line_dict['text'] += d['text'][i]
         for i, line_dict in enumerate(lines):
-            line_dict["line_num"] = i
-            line_dict["line_uid"] = str(i)
             line_dict["page_num"] = img_num
         result["data"].extend(lines)
+    for i, line_dict in enumerate(result["data"]):
+        line_dict["line_num"] = i
+        line_dict["line_uid"] = str(i)
     return result
 
 
