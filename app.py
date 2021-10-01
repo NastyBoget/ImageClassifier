@@ -1,55 +1,17 @@
+import hashlib
+import json
 import os
 import os.path
-import json
-import hashlib
 import uuid
 from typing import Optional, List
 
 from flask import Flask
 from flask import request, redirect, send_from_directory
-from copy import deepcopy
-import PIL
-from PIL import Image, ImageDraw
-import numpy as np
+
+from image_maker import get_paired_picture
+from task_maker import TaskMaker
 
 app = Flask(__name__)
-
-
-def draw_rectangle(image: PIL.Image,
-                   x_top_left: int,
-                   y_top_left: int,
-                   width: int,
-                   height: int,
-                   color: tuple = (0, 0, 0)) -> PIL.Image:
-    if color == "black":
-        color = (0, 0, 0)
-    source_img = deepcopy(image).convert("RGBA")
-
-    draw = ImageDraw.Draw(source_img)
-    x_bottom_right = x_top_left + width + 5
-    y_bottom_right = y_top_left + height + 5
-    start_point = (x_top_left - 5, y_top_left - 5)
-    end_point = (x_bottom_right, y_bottom_right)
-    draw.rectangle((start_point, end_point), outline=color, width=5)
-    return source_img
-
-
-def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict) -> str:
-    # draw bbox1
-    # draw bbox2
-    # stack pictures
-    with Image.open(img_name1) as img1:
-        r_img1 = draw_rectangle(img1, bbox1["left"], bbox1["top"], bbox1["width"], bbox1["height"], color=(255, 0, 0))
-    with Image.open(img_name2) as img2:
-        r_img2 = draw_rectangle(img2, bbox2["left"], bbox2["top"], bbox2["width"], bbox2["height"], color=(0, 0, 255))
-    if r_img1.height != r_img2.height:
-        r_img2 = r_img2.resize((r_img2.width * r_img1.height // r_img2.height, r_img1.height))
-    paired_img = Image.fromarray(np.concatenate((np.array(r_img1), np.array(r_img2)), axis=1))
-    img_name = "r_{}.png".format(os.path.splitext(os.path.basename(img_name1))[0])
-    path = os.path.join("images", img_name)
-    with open(path, "wb") as f:
-        paired_img.save(fp=f, format="PNG")
-    return path
 
 
 @app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
@@ -94,85 +56,14 @@ def read_next_task() -> Optional[tuple]:
         tasks = json.load(f)
 
     for doc_id, doc in tasks.items():
-        lines_num = len(doc["data"])
-        if lines_num < 2:
+        if len(doc["data"]) < 2:
             continue
-        doc_name = doc["doc_name"]
-        # TODO order dict
-        completed_task_ids_for_doc = [c_task_id for c_task_id in completed_tasks if c_task_id.startswith(doc_name)]
-        # consider first pair for current document
-        if len(completed_task_ids_for_doc) == 0:
-            return make_one_task(doc_name=doc_name, line1=doc["data"][0], line2=doc["data"][1],
-                                 default_label=default_label, instruction=instruction)
-        # find last comparison for document
-        last_task_id = completed_task_ids_for_doc[-1]
-        last_task_label = completed_tasks[last_task_id]['labeled'][-1]
-        last_line_uid = completed_task_ids_for_doc[-1].split('_')[-1]
-        current_line_id = find_line(doc["data"], last_line_uid)
-        if last_task_label == "other":
-            first_line_id = find_line_for_comparison(completed_task_ids_for_doc, completed_tasks,
-                                                     doc, prev_label="other")
-            if first_line_id is not None:
-                if current_line_id < lines_num - 1:
-                    return make_one_task(doc_name=doc_name,
-                                         line1=doc["data"][first_line_id], line2=doc["data"][current_line_id + 1],
-                                         default_label=default_label, instruction=instruction)
-                else:
-                    continue
-        if last_task_label != "greater":
-            if current_line_id == lines_num - 1:
-                continue
-            return make_one_task(doc_name=doc_name,
-                                 line1=doc["data"][current_line_id], line2=doc["data"][current_line_id + 1],
-                                 default_label=default_label, instruction=instruction)
-        else:  # last_task_label == "greater"
-            first_line_id = find_line_for_comparison(completed_task_ids_for_doc, completed_tasks,
-                                                     doc, prev_label="greater")
-            if first_line_id is not None:
-                return make_one_task(doc_name=doc_name,
-                                     line1=doc["data"][first_line_id], line2=doc["data"][current_line_id],
-                                     default_label=default_label, instruction=instruction)
-            if current_line_id < lines_num - 1:
-                return make_one_task(doc_name=doc_name,
-                                     line1=doc["data"][current_line_id], line2=doc["data"][current_line_id + 1],
-                                     default_label=default_label, instruction=instruction)
+        task_maker = TaskMaker(default_label, instruction, doc, completed_tasks)
+        next_task = task_maker.get_next_task()
+        if next_task is None:
+            continue
+        return next_task
     return None
-
-
-def find_line_for_comparison(completed_task_ids_for_doc: List[str],
-                             completed_tasks: dict,
-                             doc: dict,
-                             prev_label: str) -> Optional[int]:
-    if prev_label == "greater":
-        # find the given line
-        first_line_uid = completed_task_ids_for_doc[-1].split('_')[-2]
-        # consider lines in reverse order
-        for c_task_id in completed_task_ids_for_doc[::-1]:
-            if c_task_id.endswith(first_line_uid):
-                new_first_line_uid = c_task_id.split('_')[-2]
-                if completed_tasks[c_task_id]["labeled"][-1] == "less":
-                    return find_line(doc["data"], new_first_line_uid)
-                first_line_uid = new_first_line_uid
-        return None
-    elif prev_label == "other":
-        for c_task_id in completed_task_ids_for_doc[::-1]:
-            if completed_tasks[c_task_id]["labeled"][-1] != "other":
-                new_first_line_uid = c_task_id.split('_')[-1]
-                return find_line(doc["data"], new_first_line_uid)
-        return None
-
-
-def find_line(lines: List[dict], line_uid: str) -> Optional[int]:
-    for i, line in enumerate(lines):
-        if line["line_uid"] == line_uid:
-            return i
-
-
-def make_one_task(doc_name: str, line1: dict, line2: dict, default_label: str, instruction: str) -> tuple:
-    task_id = "{}_{}_{}".format(doc_name, line1["line_uid"], line2["line_uid"])
-    return task_id, {"img": (line1["img_name"], line2["img_name"],
-                             line1["bbox"], line2["bbox"]),
-                     "label": default_label, "instruction": instruction}
 
 
 def get_completed_tasks() -> dict:
