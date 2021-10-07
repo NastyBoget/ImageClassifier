@@ -1,8 +1,8 @@
-# ImageClassifier for comparing two pictures
+# ImageClassifier for comparing lines in documents
 Implementation of images classifier in JS and Flask
 
 ## How to start labeling
-* Move your images to ```images``` directory
+* Move your documents to ```docs``` directory, images of document pages to ```docs/images```
 * Fill file with task (format description down)
 * Change ```config.json``` (change labels, image_key, default_label_key and etc options)
 * Open terminal and run ```python app.py```
