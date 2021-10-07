@@ -1,4 +1,7 @@
-from typing import List, Optional
+import os
+from typing import List, Optional, Tuple
+
+from image_maker import get_paired_picture
 
 
 class TaskMaker:
@@ -23,32 +26,33 @@ class TaskMaker:
         if len(self.completed_task_ids_for_doc) == 0:
             return self.__make_one_task(line1=self.doc["data"][0], line2=self.doc["data"][1])
         # find last comparison for document
-        last_task_id = self.completed_task_ids_for_doc[-1]
-        last_task_label = self.completed_tasks[last_task_id]['labeled'][-1]
-        last_line_uid = self.completed_task_ids_for_doc[-1].split('_')[-1]
+        last_line_uid, last_task_label = self.__get_last_info()
         current_line_id = self.__find_line(self.doc["data"], last_line_uid)
+
         if last_task_label == "other":
             first_line_id = self.__find_line_for_comparison(prev_label="other")
             if first_line_id is not None:
-                if current_line_id < self.lines_num - 1:
-                    return self.__make_one_task(line1=self.doc["data"][first_line_id],
-                                                line2=self.doc["data"][current_line_id + 1])
-                else:
-                    return None
-        if last_task_label != "greater":
-            if current_line_id == self.lines_num - 1:
-                return None
-            return self.__make_one_task(line1=self.doc["data"][current_line_id],
-                                        line2=self.doc["data"][current_line_id + 1])
-        else:  # last_task_label == "greater"
+                return self.__get_next_task(first_line_id, current_line_id)
+
+        if last_task_label == "greater":
             first_line_id = self.__find_line_for_comparison(prev_label="greater")
             if first_line_id is not None:
                 return self.__make_one_task(line1=self.doc["data"][first_line_id],
                                             line2=self.doc["data"][current_line_id])
-            if current_line_id < self.lines_num - 1:
-                return self.__make_one_task(line1=self.doc["data"][current_line_id],
-                                            line2=self.doc["data"][current_line_id + 1])
-        return None
+        return self.__get_next_task(current_line_id, current_line_id)
+
+    def __get_next_task(self, first_line_id: int, second_line_id : int):
+        if second_line_id < self.lines_num - 1:
+            return self.__make_one_task(line1=self.doc["data"][first_line_id],
+                                        line2=self.doc["data"][second_line_id + 1])
+        else:
+            return None
+
+    def __get_last_info(self) -> Tuple[str, str]:
+        last_task_id = self.completed_task_ids_for_doc[-1]
+        last_task_label = self.completed_tasks[last_task_id]['labeled'][-1]
+        last_line_uid = self.completed_task_ids_for_doc[-1].split('_')[-1]
+        return last_line_uid, last_task_label
 
     def __find_line_for_comparison(self, prev_label: str) -> Optional[int]:
         if prev_label == "greater":
@@ -76,6 +80,7 @@ class TaskMaker:
 
     def __make_one_task(self, line1: dict, line2: dict) -> tuple:
         task_id = "{}_{}_{}".format(self.doc_name, line1["line_uid"], line2["line_uid"])
-        return task_id, {"img": (line1["img_name"], line2["img_name"],
-                                 line1["bbox"], line2["bbox"]),
-                         "label": self.default_label, "instruction": self.instruction}
+        img_filename = get_paired_picture(os.path.join("docs/images", line1["img_name"]),  # TODO images dir
+                                          os.path.join("docs/images", line2["img_name"]),
+                                          line1["bbox"], line2["bbox"])
+        return task_id, {"img": img_filename, "label": self.default_label, "instruction": self.instruction}

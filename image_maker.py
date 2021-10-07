@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 from copy import deepcopy
 
@@ -35,8 +37,9 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
     if r_img1.height != r_img2.height:
         r_img2 = r_img2.resize((r_img2.width * r_img1.height // r_img2.height, r_img1.height))
     paired_img = Image.fromarray(np.concatenate((np.array(r_img1), np.array(r_img2)), axis=1))
-    img_name = "r_{}.png".format(os.path.splitext(os.path.basename(img_name1))[0])
+    hash_string = img_name1 + img_name2 + json.dumps(bbox1) + json.dumps(bbox2)
+    img_name = "{}.png".format(hashlib.md5(hash_string.encode()).hexdigest())
     path = os.path.join("images", img_name)
     with open(path, "wb") as f:
         paired_img.save(fp=f, format="PNG")
-    return path
+    return img_name

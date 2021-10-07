@@ -106,10 +106,11 @@ def imgs2data(img_paths: List[str], doc_name: str, img_dir: str) -> dict:
 
 if __name__ == "__main__":
     paths = ["docs/doc1.pdf", "docs/doc2.pdf"]
-    out_dir = "images"
+    out_dir = "docs/images"
+    os.makedirs(out_dir, exist_ok=True)
     tasks = {}
     for i, path in enumerate(paths):
-        img_paths = pdf2imgs(path, "images")
+        img_paths = pdf2imgs(path, out_dir)
         if img_paths:
             doc_dict = imgs2data(img_paths, path, out_dir)
             tasks[str(i)] = doc_dict

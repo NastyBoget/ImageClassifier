@@ -2,27 +2,22 @@ import hashlib
 import json
 import os
 import os.path
+import shutil
 import uuid
-from typing import Optional, List, Any
+from typing import Optional, Any
 
 from flask import Flask
 from flask import request, redirect, send_from_directory
 from werkzeug import Response
 
-from image_maker import get_paired_picture
 from task_maker import TaskMaker
 
 app = Flask(__name__)
 
 
-@app.route('/<path:filename1>/<path:filename2>/<bbox1>/<bbox2>')
-def image_file(filename1: str, filename2: str, bbox1: str, bbox2: str) -> Any:
-    # bbox = {"left", "top", "width", "height"}
-    bbox1 = json.loads(bbox1)
-    bbox2 = json.loads(bbox2)
-    paired_filename = get_paired_picture(os.path.join("images", filename1),
-                                         os.path.join("images", filename2), bbox1, bbox2)
-    return send_from_directory(".", paired_filename)
+@app.route('/<path:filename>')
+def image_file(filename: str) -> Any:
+    return send_from_directory("images", filename)
 
 
 @app.route('/js/<filename>')
@@ -84,11 +79,9 @@ def save_completed_tasks(completed_tasks: dict) -> None:
         json.dump(completed_tasks, f, indent=2, ensure_ascii=False)
 
 
-def make_classifier(task_id: str, title: str, image: tuple,
+def make_classifier(task_id: str, title: str, image: str,
                     default_label: str, multiclass: bool, task_instruction: str) -> str:
     labels = []
-    image = "/{}/{}/{}/{}".format(os.path.join(image[0]), os.path.join(image[1]),
-                                  json.dumps(image[2]), json.dumps(image[3]))
 
     for label_info in config["labels"]:
         label = label_info["label"]
@@ -118,7 +111,7 @@ def make_classifier(task_id: str, title: str, image: tuple,
         <body>
             <div class="classifier">
                 <div class="classifier-img" id="img">
-                    <img src='{image}'>
+                    <img src={image}>
                 </div>
 
                 <div class="classifier-controls">
@@ -310,6 +303,7 @@ def get_config(filename: str) -> dict:
 
 if __name__ == '__main__':
     try:
+        os.makedirs("images", exist_ok=True)
         config = get_config('config.json')
         host = "0.0.0.0"
         port = config["port"]
@@ -323,5 +317,6 @@ if __name__ == '__main__':
                 f.write("{\n}")
 
         app.run(debug=config.get("debug", False), host=host, port=port)
+        shutil.rmtree("images")
     except ValueError as error:
         print(error)
