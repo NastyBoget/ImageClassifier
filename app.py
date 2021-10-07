@@ -1,38 +1,41 @@
+import hashlib
+import json
 import os
 import os.path
-import random
-import json
-import hashlib
+import shutil
 import uuid
+from typing import Optional, Any
 
 from flask import Flask
 from flask import request, redirect, send_from_directory
+from werkzeug import Response
 
+from task_maker import TaskMaker
 
 app = Flask(__name__)
 
 
 @app.route('/<path:filename>')
-def image_file(filename):
-    return send_from_directory(".", filename)
+def image_file(filename: str) -> Any:
+    return send_from_directory("images", filename)
 
 
 @app.route('/js/<filename>')
-def js_file(filename):
+def js_file(filename: str) -> Any:
     return send_from_directory(app.config['JS_FOLDER'], filename)
 
 
 @app.route('/css/<filename>')
-def css_file(filename):
+def css_file(filename: str) -> Any:
     return send_from_directory(app.config['CSS_FOLDER'], filename)
 
 
 @app.route('/fonts/<filename>')
-def font_file(filename):
+def font_file(filename: str) -> Any:
     return send_from_directory(app.config['FONTS_FOLDER'], filename)
 
 
-def get_by_key_list(task, keys):
+def get_by_key_list(task: dict, keys: list) -> Any:
     value = task
 
     for key in keys:
@@ -41,51 +44,43 @@ def get_by_key_list(task, keys):
     return value
 
 
-def read_tasks():
+def read_next_task() -> Optional[tuple]:
+    completed_tasks = get_completed_tasks()
+    default_label, instruction = "equal", ""
+
     with open(os.path.abspath(config["input_path"]), "r", encoding='utf-8') as f:
         tasks = json.load(f)
 
-    completed_tasks = get_completed_tasks()
-    available_tasks = []
-
-    for task_id, task in tasks.items():
-        if task_id in completed_tasks:
+    for doc_id, doc in tasks.items():
+        if len(doc["data"]) < 2:
             continue
-
-        img_name = get_by_key_list(task, config["image_key"])
-        default_label = get_by_key_list(task, config["default_label_key"])
-
-        instruction = ""
-
-        if "task_instruction_key" in config:
-            try:
-                instruction = "<h3>Task instruction</h3>" + get_by_key_list(task, config["task_instruction_key"])
-            except:
-                pass
-
-        available_tasks.append({"id": task_id, "img": img_name, "label": default_label, "instruction": instruction})
-
-    return available_tasks
+        task_maker = TaskMaker(default_label, instruction, doc, completed_tasks)
+        next_task = task_maker.get_next_task()
+        if next_task is None:
+            continue
+        return next_task
+    return None
 
 
-def get_completed_tasks():
+def get_completed_tasks() -> dict:
     with open(config["output_path"], 'r', encoding='utf-8') as f:
         completed_tasks = json.load(f)
 
     return completed_tasks
 
 
-def get_md5(filename):
+def get_md5(filename: str) -> str:
     with open(filename, 'rb') as f:
         return hashlib.md5(f.read()).hexdigest()
 
 
-def save_completed_tasks(completed_tasks):
+def save_completed_tasks(completed_tasks: dict) -> None:
     with open(config["output_path"], 'w', encoding='utf-8') as f:
         json.dump(completed_tasks, f, indent=2, ensure_ascii=False)
 
 
-def make_classifier(task_id, title, image, default_label, multiclass, task_instruction):
+def make_classifier(task_id: str, title: str, image: str,
+                    default_label: str, multiclass: bool, task_instruction: str) -> str:
     labels = []
 
     for label_info in config["labels"]:
@@ -147,7 +142,7 @@ def make_classifier(task_id, title, image, default_label, multiclass, task_instr
             <script src="js/classifier.js?v={js}"></script>
             <script> 
                 const MULTICLASS = {multiclass};
-                const TASK_ID = {task_id};
+                const TASK_ID = '{task_id}';
                 const REQUIRE_CONFIRMATION = {confirm_required};
                 const LABELS = [
                     {labels}
@@ -170,7 +165,7 @@ def make_classifier(task_id, title, image, default_label, multiclass, task_instr
                labels=",\n".join(labels))
 
 
-def make_labeled(labeled_tasks):
+def make_labeled(labeled_tasks: dict) -> str:
     table = ''
 
     for task_id in labeled_tasks:
@@ -211,36 +206,28 @@ def make_labeled(labeled_tasks):
 
 
 @app.route('/', methods=['GET'])
-def classify_image():
-    available_tasks = read_tasks()
+def classify_image() -> str:
+    available_task = read_next_task()
 
-    if len(available_tasks) == 0:  # если их нет, то и размечать нечего
+    if available_task is None:  # если их нет, то и размечать нечего
         return '''
         <p>Размечать нечего</p>
         <h1><a href="/get_results/{uid}">Результаты</a></h1>
         '''.format(uid=uuid.uuid1())
 
-    if config["sampling"] in ["random", "shuffle"]:
-        task = random.choice(available_tasks)
-    elif config["sampling"] == "sequential":
-        task = available_tasks[0]
-    else:
-        raise ValueError("Invalid sampling mode")
-
-    title = "Lost: " + str(len(available_tasks)) + " | " + config["title"]
-    return make_classifier(task["id"], title, task["img"], task["label"], config["multiclass"], task.get("instruction", ""))
+    task_id, task = available_task
+    title = config["title"]
+    return make_classifier(task_id, title, task["img"], task["label"], config["multiclass"],
+                           task.get("instruction", ""))
 
 
 @app.route('/save')
-def save_file():
+def save_file() -> Response:
     task_id = request.args.get('task_id')
     labels = request.args.get('labels')
 
-    with open(config["input_path"], "r", encoding='utf-8') as f:
-        tasks = json.load(f)
-
     completed_tasks = get_completed_tasks()
-    completed_tasks[task_id] = tasks[task_id]  # добавляем выполненное задание
+    completed_tasks[task_id] = {}  # добавляем выполненное задание
     completed_tasks[task_id][config["result_key"]] = labels.split(';')
 
     save_completed_tasks(completed_tasks)
@@ -249,7 +236,7 @@ def save_file():
 
 
 @app.route('/labeled')
-def view_labeled():
+def view_labeled() -> str:
     completed_tasks = get_completed_tasks()
 
     if len(completed_tasks) == 0:
@@ -259,7 +246,7 @@ def view_labeled():
 
 
 @app.route('/restore')
-def restore_task():
+def restore_task() -> Response:
     task_id = request.args.get('task_id')
     completed_tasks = get_completed_tasks()
     del completed_tasks[task_id]
@@ -270,7 +257,7 @@ def restore_task():
 
 
 @app.route('/get_results/<uid>')
-def get_results(uid=None):
+def get_results(uid: str = None) -> Any:
     result_file = config["output_path"]
     if not os.path.isfile(result_file):
         return "Nothing to download!"
@@ -279,7 +266,7 @@ def get_results(uid=None):
     return send_from_directory(directory, filename, as_attachment=True)
 
 
-def check_key(config: dict, key: str, default_value=None):
+def check_key(config: dict, key: str, default_value: Any = None) -> None:
     if key not in config:
         if default_value is None:
             raise ValueError('{} is not set'.format(key))
@@ -288,7 +275,7 @@ def check_key(config: dict, key: str, default_value=None):
         print('Warning: "{0}" is not set. Changed to "{1}"'.format(key, default_value))
 
 
-def get_config(filename: str):
+def get_config(filename: str) -> dict:
     with open(os.path.join(os.path.dirname(__file__), filename), encoding='utf-8') as f:
         config = json.load(f)
 
@@ -316,6 +303,7 @@ def get_config(filename: str):
 
 if __name__ == '__main__':
     try:
+        os.makedirs("images", exist_ok=True)
         config = get_config('config.json')
         host = "0.0.0.0"
         port = config["port"]
@@ -328,6 +316,7 @@ if __name__ == '__main__':
             with open(config["output_path"], "w", encoding='utf-8') as f:
                 f.write("{\n}")
 
-        app.run(debug=config.get("debug", False), host=host,  port=port)
+        app.run(debug=config.get("debug", False), host=host, port=port)
+        shutil.rmtree("images")
     except ValueError as error:
         print(error)

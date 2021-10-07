@@ -1,4 +1,4 @@
-# ImageClassifier
+# ImageClassifier for comparing two pictures
 Implementation of images classifier in JS and Flask
 
 ## How to start labeling
@@ -24,16 +24,10 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
   "port": 5000,
   "debug": false,
   "labels": [
-    { "label": "raw_text", "color": "#f00" },
-    { "label": "header", "color": "#0f0", "html": "<span class='fa fa-header'></span> header" },
-    { "label": "title", "color": "ff1500" },
-    { "label": "item", "color": "#00f" },
-    { "label": "footer", "color": "#00f080" },
-    { "label": "article", "color": "#00f" },
-    { "label": "part", "color": "#00f" },
-    { "label": "subitem", "color": "#00f" },
-    { "label": "struct_unit", "color": "#00f" },
-    { "label": "Other", "color": "#00f" }
+    { "label": "equal", "color": "#f00" },
+    { "label": "greater", "color": "#0f0" },
+    { "label": "less", "color": "#00f" },
+    { "label": "other", "color": "#ff0" }
   ],
   "multiclass": true,
   "input_path": "tasks.json",
@@ -93,8 +87,14 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
 ```json
 {
   "task_id": {
-    "image_key": "image_path",
-    "default_label_key": "label",
+    "doc_name": "doc_path",
+    "data": [
+      {
+        "img_name": "name of page image",
+        "line_uid": "unique identifier of the line",
+        "bbox": {"left": 0, "top": 0, "width": 0, "height": 0}
+      }
+    ]
   }
 }
 ```
@@ -107,111 +107,49 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
 ```json
 {
   "0": {
-    "task_path": "images/img_000.jpg",
-    "id": 0,
-    "instruction": "instruction for task 0 (<b>hypertext</b>)",
-    "predictions": [
+    "doc_name": "doc1.pdf",
+    "data": [
       {
-        "result": [
-          {
-            "type": "choices",
-            "value": {
-              "choices": [
-                "raw_text"
-              ]
-            },
-            "id": "UtdEoBaQU2",
-            "to_name": "img",
-            "from_name": "choice"
-          }
-        ],
-        "id": 0
-      }
-    ],
-    "data": {
-      "bbox": {
+        "img_name": "doc1_0001.jpeg",
         "line_num": 0,
-        "text": " ",
-        "bbox": {
-          "height": 199,
-          "y_lower_left": 72,
-          "width": 225,
-          "x_lower_left": 796
-        },
-        "label": "raw_text",
+        "line_uid": "",
+        "text": "",
+        "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
         "page_num": 0
       },
-      "image_url": "http://localhost:8200/data/img_000.jpg?d=/tmp/task_c8c090a8-ab0f-11ea-a918-b42e99d2ac06/images",
-      "original_image_name": "img_000001_00.png"
-    }
+      {
+        "img_name": "doc1_0001.jpeg",
+        "line_num": 1,
+        "line_uid": "",
+        "text": "",
+        "bbox": {"left": 1, "top": 1, "width": 1, "height": 1},
+        "page_num": 0
+      }
+    ]
   },
   "1": {
-    "task_path": "images/img_001.jpg",
-    "id": 1,
-    "predictions": [
+    "doc_name": "doc2.pdf",
+    "data": [
       {
-        "result": [
-          {
-            "type": "choices",
-            "value": {
-              "choices": [
-                "header"
-              ]
-            },
-            "id": "UtdEoBaQU2",
-            "to_name": "img",
-            "from_name": "choice"
-          }
-        ],
-        "id": 1
-      }
-    ],
-    "data": {
-      "bbox": {
-        "line_num": 1,
-        "text": "ВОРОНЕЖСКАЯ ОБЛАСТЬ",
-        "bbox": {
-          "height": 51,
-          "y_lower_left": 342,
-          "width": 878,
-          "x_lower_left": 483
-        },
-        "label": "header",
+        "img_name": "doc2_0001.jpeg",
+        "line_num": 0,
+        "line_uid": "",
+        "text": "",
+        "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
         "page_num": 0
       },
-      "image_url": "http://localhost:8200/data/img_001.jpg?d=/tmp/task_c8c090a8-ab0f-11ea-a918-b42e99d2ac06/images",
-      "original_image_name": "img_000001_00.png"
-    }
-  },
+      {
+        "img_name": "doc2_0002.jpeg",
+        "line_num": 1,
+        "line_uid": "",
+        "text": "",
+        "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
+        "page_num": 1
+      }
+    ]
+  }
 }
 ```
 
 ## Instruction for tasks
 Add to config key `task_instruction_key` with path to tasks instruction key, for example, `task_instruction_key: ["instruction"]`
-Add to tasks with instuction selected key and run classifier:
-
-```json
-{
-  "task_id": {
-    "image_key": "image_path",
-    "default_label_key": "label",
-    "task_instruction_key": ["instruction"],
-  }
-}
-```
-
-```json
-{
-  "0": {
-    "task_path": "images/img_000.jpg",
-    "id": 0,
-    "label": "raw_text",
-    "instruction": "instruction for task 0 (<b>hypertext</b>)",
-  },
-  "1": {
-    "task_path": "images/img_001.jpg",
-    "label": "raw_text",
-    "id": 1,
-  },
-}
-```

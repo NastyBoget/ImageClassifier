@@ -1,18 +1,12 @@
 {
-  "title": "Some title",
+  "title": "Line pairs labelling",
   "port": 5000,
   "debug": false,
   "labels": [
-    { "label": "raw_text", "color": "#f00" },
-    { "label": "header", "color": "#0f0" },
-    { "label": "title", "color": "hsl(70, 80%, 50%)" },
-    { "label": "item", "color": "#00f" },
-    { "label": "footer", "color": "#00f080" },
-    { "label": "article", "color": "#00f" },
-    { "label": "part", "color": "rgb(0, 0, 255)" },
-    { "label": "subitem", "color": "#00f" },
-    { "label": "struct_unit", "color": "#00f" },
-    { "label": "Other", "color": "#00f" }
+    { "label": "equal", "color": "#f00" },
+    { "label": "greater", "color": "#0f0" },
+    { "label": "less", "color": "#00f" },
+    { "label": "other", "color": "#ff0" }
   ],
   "multiclass": true,
   "input_path": "tasks.json",
