@@ -15,6 +15,7 @@
   "task_instruction_key": ["instruction"],
   "result_key": "labeled",
   "output_path": "labeled_tasks.json",
+  "tmp_images_dir": "tmp_images",
   "instruction": "Type some <b>hypertext</b> for label experts!",
   "templates_dir": "examples",
   "confirm_required": false,

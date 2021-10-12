@@ -2,32 +2,32 @@
 # {
 #     "0": {"doc_name": "doc1.pdf",
 #           "data": [{"img_name": "doc1_0001.jpeg",
-#                     "line_num": 0,
-#                     "line_uid": "",
+#                     "line_id": 0,
+#                     "uid": "",
 #                     "text": "",
 #                     "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
-#                     "page_num": 0},
+#                     "page_id": 0},
 #                    {"img_name": "doc1_0001.jpeg",
-#                     "line_num": 1,
-#                     "line_uid": "",
+#                     "line_id": 1,
+#                     "uid": "",
 #                     "text": "",
 #                     "bbox": {"left": 1, "top": 1, "width": 1, "height": 1},
-#                     "page_num": 0}
+#                     "page_id": 0}
 #                     ]
 #           },
 #     "1": {"doc_name": "doc2.pdf",
 #           "data": [{"img_name": "doc2_0001.jpeg",
-#                     "line_num": 0,
-#                     "line_uid": "",
+#                     "line_id": 0,
+#                     "uid": "",
 #                     "text": "",
 #                     "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
-#                     "page_num": 0},
+#                     "page_id": 0},
 #                    {"img_name": "doc2_0002.jpeg",
-#                     "line_num": 1,
-#                     "line_uid": "",
+#                     "line_id": 1,
+#                     "uid": "",
 #                     "text": "",
 #                     "bbox": {"left": 1, "top": 1, "width": 1, "height": 1},
-#                     "page_num": 1}
+#                     "page_id": 1}
 #                    ]
 #           }
 # }
@@ -96,17 +96,17 @@ def imgs2data(img_paths: List[str], doc_name: str, img_dir: str) -> dict:
                             line_dict['text'] += ' '
                         line_dict['text'] += d['text'][i]
         for i, line_dict in enumerate(lines):
-            line_dict["page_num"] = img_num
+            line_dict["page_id"] = img_num
         result["data"].extend(lines)
     for i, line_dict in enumerate(result["data"]):
-        line_dict["line_num"] = i
-        line_dict["line_uid"] = str(i)
+        line_dict["line_id"] = i
+        line_dict["uid"] = str(i)
     return result
 
 
 if __name__ == "__main__":
     paths = ["docs/doc1.pdf", "docs/doc2.pdf"]
-    out_dir = "docs/images"
+    out_dir = "images"
     os.makedirs(out_dir, exist_ok=True)
     tasks = {}
     for i, path in enumerate(paths):

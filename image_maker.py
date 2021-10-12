@@ -7,6 +7,8 @@ import PIL
 import numpy as np
 from PIL import ImageDraw, Image
 
+from config import get_config
+
 
 def draw_rectangle(image: PIL.Image,
                    x_top_left: int, y_top_left: int,
@@ -39,7 +41,9 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
     paired_img = Image.fromarray(np.concatenate((np.array(r_img1), np.array(r_img2)), axis=1))
     hash_string = img_name1 + img_name2 + json.dumps(bbox1) + json.dumps(bbox2)
     img_name = "{}.png".format(hashlib.md5(hash_string.encode()).hexdigest())
-    path = os.path.join("images", img_name)
+
+    config = get_config('config.json')
+    path = os.path.join(config["tmp_images_dir"], img_name)
     with open(path, "wb") as f:
         paired_img.save(fp=f, format="PNG")
     return img_name

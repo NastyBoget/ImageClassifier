@@ -26,8 +26,8 @@ class TaskMaker:
         if len(self.completed_task_ids_for_doc) == 0:
             return self.__make_one_task(line1=self.doc["data"][0], line2=self.doc["data"][1])
         # find last comparison for document
-        last_line_uid, last_task_label = self.__get_last_info()
-        current_line_id = self.__find_line(self.doc["data"], last_line_uid)
+        last_uid, last_task_label = self.__get_last_info()
+        current_line_id = self.__find_line(self.doc["data"], last_uid)
 
         if last_task_label == "other":
             first_line_id = self.__find_line_for_comparison(prev_label="other")
@@ -51,36 +51,36 @@ class TaskMaker:
     def __get_last_info(self) -> Tuple[str, str]:
         last_task_id = self.completed_task_ids_for_doc[-1]
         last_task_label = self.completed_tasks[last_task_id]['labeled'][-1]
-        last_line_uid = self.completed_task_ids_for_doc[-1].split('_')[-1]
-        return last_line_uid, last_task_label
+        last_uid = self.completed_task_ids_for_doc[-1].split('___')[-1]
+        return last_uid, last_task_label
 
     def __find_line_for_comparison(self, prev_label: str) -> Optional[int]:
         if prev_label == "greater":
             # find the given line
-            first_line_uid = self.completed_task_ids_for_doc[-1].split('_')[-2]
+            first_uid = self.completed_task_ids_for_doc[-1].split('___')[-2]
             # consider lines in reverse order
             for c_task_id in self.completed_task_ids_for_doc[::-1]:
-                if c_task_id.endswith(first_line_uid):
-                    new_first_line_uid = c_task_id.split('_')[-2]
+                if c_task_id.endswith(first_uid):
+                    new_first_uid = c_task_id.split('___')[-2]
                     if self.completed_tasks[c_task_id]["labeled"][-1] == "less":
-                        return self.__find_line(self.doc["data"], new_first_line_uid)
-                    first_line_uid = new_first_line_uid
+                        return self.__find_line(self.doc["data"], new_first_uid)
+                    first_uid = new_first_uid
             return None
         elif prev_label == "other":
             for c_task_id in self.completed_task_ids_for_doc[::-1]:
                 if self.completed_tasks[c_task_id]["labeled"][-1] != "other":
-                    new_first_line_uid = c_task_id.split('_')[-1]
-                    return self.__find_line(self.doc["data"], new_first_line_uid)
+                    new_first_uid = c_task_id.split('___')[-1]
+                    return self.__find_line(self.doc["data"], new_first_uid)
             return None
 
-    def __find_line(self, lines: List[dict], line_uid: str) -> Optional[int]:
+    def __find_line(self, lines: List[dict], uid: str) -> Optional[int]:
         for i, line in enumerate(lines):
-            if line["line_uid"] == line_uid:
+            if line["uid"] == uid:
                 return i
 
     def __make_one_task(self, line1: dict, line2: dict) -> tuple:
-        task_id = "{}_{}_{}".format(self.doc_name, line1["line_uid"], line2["line_uid"])
-        img_filename = get_paired_picture(os.path.join("docs/images", line1["img_name"]),  # TODO images dir
-                                          os.path.join("docs/images", line2["img_name"]),
+        task_id = "{}___{}___{}".format(self.doc_name, line1["uid"], line2["uid"])
+        img_filename = get_paired_picture(os.path.join("images", line1["img_name"]),  # TODO images dir
+                                          os.path.join("images", line2["img_name"]),
                                           line1["bbox"], line2["bbox"])
         return task_id, {"img": img_filename, "label": self.default_label, "instruction": self.instruction}

@@ -2,7 +2,7 @@
 Implementation of images classifier in JS and Flask
 
 ## How to start labeling
-* Move your documents to ```docs``` directory, images of document pages to ```docs/images```
+* Move your documents to ```docs``` directory, images of document pages to ```images```
 * Fill file with task (format description down)
 * Change ```config.json``` (change labels, image_key, default_label_key and etc options)
 * Open terminal and run ```python app.py```
@@ -91,7 +91,7 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
     "data": [
       {
         "img_name": "name of page image",
-        "line_uid": "unique identifier of the line",
+        "uid": "unique identifier of the line",
         "bbox": {"left": 0, "top": 0, "width": 0, "height": 0}
       }
     ]
@@ -111,19 +111,19 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
     "data": [
       {
         "img_name": "doc1_0001.jpeg",
-        "line_num": 0,
-        "line_uid": "",
+        "line_id": 0,
+        "uid": "",
         "text": "",
         "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
-        "page_num": 0
+        "page_id": 0
       },
       {
         "img_name": "doc1_0001.jpeg",
-        "line_num": 1,
-        "line_uid": "",
+        "line_id": 1,
+        "": "",
         "text": "",
         "bbox": {"left": 1, "top": 1, "width": 1, "height": 1},
-        "page_num": 0
+        "page_id": 0
       }
     ]
   },
@@ -132,19 +132,19 @@ Result tasks saved to ```output_path``` output path defined in ```config.json```
     "data": [
       {
         "img_name": "doc2_0001.jpeg",
-        "line_num": 0,
-        "line_uid": "",
+        "line_id": 0,
+        "uid": "",
         "text": "",
         "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
-        "page_num": 0
+        "page_id": 0
       },
       {
         "img_name": "doc2_0002.jpeg",
-        "line_num": 1,
-        "line_uid": "",
+        "line_id": 1,
+        "uid": "",
         "text": "",
         "bbox": {"left": 0, "top": 0, "width": 0, "height": 0},
-        "page_num": 1
+        "page_id": 1
       }
     ]
   }

@@ -10,6 +10,7 @@ from flask import Flask
 from flask import request, redirect, send_from_directory
 from werkzeug import Response
 
+from config import get_config
 from task_maker import TaskMaker
 
 app = Flask(__name__)
@@ -17,7 +18,7 @@ app = Flask(__name__)
 
 @app.route('/<path:filename>')
 def image_file(filename: str) -> Any:
-    return send_from_directory("images", filename)
+    return send_from_directory(config["tmp_images_dir"], filename)
 
 
 @app.route('/js/<filename>')
@@ -266,45 +267,10 @@ def get_results(uid: str = None) -> Any:
     return send_from_directory(directory, filename, as_attachment=True)
 
 
-def check_key(config: dict, key: str, default_value: Any = None) -> None:
-    if key not in config:
-        if default_value is None:
-            raise ValueError('{} is not set'.format(key))
-
-        config[key] = default_value
-        print('Warning: "{0}" is not set. Changed to "{1}"'.format(key, default_value))
-
-
-def get_config(filename: str) -> dict:
-    with open(os.path.join(os.path.dirname(__file__), filename), encoding='utf-8') as f:
-        config = json.load(f)
-
-    check_key(config, 'title', '')
-    check_key(config, 'port', '5000')
-    check_key(config, 'output_path', 'labeled_tasks.json')
-    check_key(config, 'input_path', 'tasks.json')
-    check_key(config, 'labels')
-    check_key(config, 'multiclass', False)
-    check_key(config, 'result_key', 'labeled')
-    check_key(config, 'sampling', 'sequential')
-
-    if config['sampling'] not in ['sequential', 'random', 'shuffle']:
-        raise ValueError('Invalid "sampling" mode: {0}'.format(config['sampling']))
-
-    for label in config['labels']:
-        if 'label' not in label:
-            raise ValueError('All labels must have "label" key')
-
-    if len(set(label['label'] for label in config['labels'])) != len(config['labels']):
-        raise ValueError('Labels are not unique')
-
-    return config
-
-
 if __name__ == '__main__':
     try:
-        os.makedirs("images", exist_ok=True)
         config = get_config('config.json')
+        os.makedirs(config["tmp_images_dir"], exist_ok=True)
         host = "0.0.0.0"
         port = config["port"]
 
@@ -317,6 +283,6 @@ if __name__ == '__main__':
                 f.write("{\n}")
 
         app.run(debug=config.get("debug", False), host=host, port=port)
-        shutil.rmtree("images")
+        shutil.rmtree(config["tmp_images_dir"])
     except ValueError as error:
         print(error)
