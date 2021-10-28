@@ -96,7 +96,6 @@ def make_classifier(task_id: str, title: str, image: str,
         labels.append("{" + label_str + color_str + checked_str + html_str + " }")
 
     completed_tasks = get_completed_tasks()
-    labeled = "" if len(completed_tasks) == 0 else "<a href='/labeled'>Labeled tasks</a>"
     previous = "" if len(
         completed_tasks) == 0 else '''<div class='button' onclick='window.location.replace("/restore?task_id=''' + \
                                    list(completed_tasks.keys())[-1] + '''")'>Восстановить прошлую</div>'''
@@ -121,6 +120,7 @@ def make_classifier(task_id: str, title: str, image: str,
 
                         <div class="button" onclick=classifier.Reset()>Сбросить</div>
                         <div class="button" onclick=classifier.Save()>Сохранить</div>
+                        <div class="button" onclick=classifier.GetResults()>Скачать результаты</div>
                         {previous}
                     </div>
 
@@ -134,10 +134,6 @@ def make_classifier(task_id: str, title: str, image: str,
                     <h2>Instruction</h2>
                     {instruction}
                 </div>
-            </div>
-
-            <div>
-                {labeled}
             </div>
 
             <script src="js/classifier.js?v={js}"></script>
@@ -158,7 +154,6 @@ def make_classifier(task_id: str, title: str, image: str,
                js=get_md5(app.config["JS_FOLDER"] + "/classifier.js"),
                style=get_md5(app.config["CSS_FOLDER"] + "/styles.css"),
                instruction=config["instruction"] + task_instruction,
-               labeled=labeled,
                previous=previous,
                multiclass=("true" if multiclass else "false"),
                task_id=task_id,
@@ -213,7 +208,7 @@ def classify_image() -> str:
     if available_task is None:  # если их нет, то и размечать нечего
         return '''
         <p>Размечать нечего</p>
-        <h1><a href="/get_results/{uid}">Результаты</a></h1>
+        <h1><a href="/get_results">Результаты</a></h1>
         '''.format(uid=uuid.uuid1())
 
     task_id, task = available_task
@@ -236,16 +231,6 @@ def save_file() -> Response:
     return redirect("/")  # возвращаем на страницу разметки
 
 
-@app.route('/labeled')
-def view_labeled() -> str:
-    completed_tasks = get_completed_tasks()
-
-    if len(completed_tasks) == 0:
-        return "No tasks have been labeled, <a href='/'>go to label page</a>:"
-
-    return make_labeled(completed_tasks)
-
-
 @app.route('/restore')
 def restore_task() -> Response:
     task_id = request.args.get('task_id')
@@ -257,8 +242,8 @@ def restore_task() -> Response:
     return redirect(request.referrer)
 
 
-@app.route('/get_results/<uid>')
-def get_results(uid: str = None) -> Any:
+@app.route('/get_results')
+def get_results() -> Any:
     result_file = config["output_path"]
     if not os.path.isfile(result_file):
         return "Nothing to download!"

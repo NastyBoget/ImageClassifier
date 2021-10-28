@@ -113,6 +113,10 @@ Classifier.prototype.Save = function() {
         window.location.replace('/save?labels=' + result.join(";") + "&task_id=" + TASK_ID)
 }
 
+Classifier.prototype.GetResults = function() {
+    window.location.replace('/get_results')
+}
+
 // обработка нажатия кнопок
 Classifier.prototype.KeyDown = function(e) {
     if (e.key == "Enter") {
