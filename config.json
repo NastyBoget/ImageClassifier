@@ -1,6 +1,6 @@
 {
   "title": "Line pairs labelling",
-  "port": 5000,
+  "port": 5555,
   "debug": false,
   "labels": [
     { "label": "equal", "color": "#f00" },

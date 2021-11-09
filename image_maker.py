@@ -3,16 +3,21 @@ import json
 import os
 from copy import deepcopy
 
-import PIL
-import numpy as np
 from PIL import ImageDraw, Image
 
 from config import get_config
 
 
-def draw_rectangle(image: PIL.Image,
+def get_concat(im1: Image, im2: Image) -> Image:
+    dst = Image.new('RGB', (im1.width + im2.width, max(im1.height, im2.height)))
+    dst.paste(im1, (0, 0))
+    dst.paste(im2, (im1.width, 0))
+    return dst
+
+
+def draw_rectangle(image: Image,
                    x_top_left: int, y_top_left: int,
-                   width: int, height: int, color: tuple = (0, 0, 0)) -> PIL.Image:
+                   width: int, height: int, color: tuple = (0, 0, 0)) -> Image:
     if color == "black":
         color = (0, 0, 0)
     source_img = deepcopy(image).convert("RGBA")
@@ -36,9 +41,7 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
     with Image.open(img_name2) as img2:
         r_img2 = draw_rectangle(img2, bbox2["left"], bbox2["top"], bbox2["width"], bbox2["height"],
                                 color=(0, 0, 255))
-    if r_img1.height != r_img2.height:
-        r_img2 = r_img2.resize((r_img2.width * r_img1.height // r_img2.height, r_img1.height))
-    paired_img = Image.fromarray(np.concatenate((np.array(r_img1), np.array(r_img2)), axis=1))
+    paired_img = get_concat(r_img1, r_img2)
     hash_string = img_name1 + img_name2 + json.dumps(bbox1) + json.dumps(bbox2)
     img_name = "{}.png".format(hashlib.md5(hash_string.encode()).hexdigest())
 
