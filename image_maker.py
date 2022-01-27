@@ -2,8 +2,9 @@ import hashlib
 import json
 import os
 from copy import deepcopy
+from typing import Optional
 
-from PIL import ImageDraw, Image
+from PIL import ImageDraw, ImageFont, Image
 
 from config import get_config
 
@@ -31,7 +32,12 @@ def draw_rectangle(image: Image,
     return source_img
 
 
-def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict) -> str:
+def get_paired_picture(img_name1: str,
+                       img_name2: str,
+                       bbox1: dict,
+                       bbox2: dict,
+                       out_dir: Optional[str] = None,
+                       text: Optional[str] = None) -> str:
     # draw bbox1
     # draw bbox2
     # stack pictures
@@ -45,8 +51,13 @@ def get_paired_picture(img_name1: str, img_name2: str, bbox1: dict, bbox2: dict)
     hash_string = img_name1 + img_name2 + json.dumps(bbox1) + json.dumps(bbox2)
     img_name = "{}.png".format(hashlib.md5(hash_string.encode()).hexdigest())
 
-    config = get_config('config.json')
-    path = os.path.join(config["tmp_images_dir"], img_name)
+    if out_dir is None:
+        config = get_config('config.json')
+        out_dir = config["tmp_images_dir"]
+    if text is not None:
+        font = ImageFont.truetype(os.path.join("fonts", "Copilme_Regular.ttf"), size=int(paired_img.height*0.04))
+        ImageDraw.Draw(paired_img).text((10, 10), text, (0, 100, 0), font=font)
+    path = os.path.join(out_dir, img_name)
     with open(path, "wb") as f:
         paired_img.save(fp=f, format="PNG")
     return img_name
