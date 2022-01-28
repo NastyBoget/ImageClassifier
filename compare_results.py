@@ -2,19 +2,20 @@ import json
 import os
 import shutil
 import sys
+from typing import Tuple
 
 from image_maker import get_paired_picture
 
-results = {"missed": [], "added": [], "correct": [], "mismatch": []}
 
-
-def collect_statistics(labels1: dict, labels2: dict, task_dir: str) -> dict:
+def collect_statistics(labels1: dict, labels2: dict, task_dir: str) -> Tuple[dict, dict]:
     with open(os.path.join(task_dir, "tasks.json")) as f:
         tasks = json.load(f)
     bbox2img = {}
-    for line in tasks['0']['data']:
-        bbox2img[line['uid']] = line
+    for task in tasks.values():
+        for line in task['data']:
+            bbox2img[line['uid']] = line
 
+    results = {"missed": [], "added": [], "correct": [], "mismatch": []}
     for key, value1 in labels1.items():
         if key not in labels2:
             results["missed"].append([key, value1["labeled"][0]])
@@ -28,32 +29,29 @@ def collect_statistics(labels1: dict, labels2: dict, task_dir: str) -> dict:
 
     for key, value in labels2.items():
         results["added"].append([key, value["labeled"][0]])
-    return bbox2img
+    return results, bbox2img
 
 
-def print_results() -> None:
+def print_results(results: dict) -> None:
     correct, mismatch = len(results["correct"]), len(results["mismatch"])
     added, missed = len(results["added"]), len(results["missed"])
     precision = correct / (correct + added + mismatch)
     recall = correct / (correct + missed + mismatch)
     f_measure = 2 * precision * recall / (precision + recall)
 
+    print(f"correct = {correct}, mismatch = {mismatch}, added = {added}, missed = {missed}")
     print(f"precision = {precision}")
     print(f"recall = {recall}")
     print(f"f_measure = {f_measure}")
 
 
-def draw_errors(bbox2img: dict, task_dir: str, out_dir: str) -> None:
-    if os.path.isdir(out_dir):
-        shutil.rmtree(out_dir)
-    os.makedirs(out_dir)
-
+def draw_errors(bbox2img: dict, results: dict, task_dir: str, out_dir: str) -> None:
     for key in ["added", "missed", "mismatch"]:
         errors_list = results[key]
         for error in errors_list:
             bboxes = error[0].split('___')[1:]
             if bboxes[0] not in bbox2img or bboxes[1] not in bbox2img:
-                print(f"{error} not found")
+                print(f"{error[0]} not found")
                 continue
             bbox1 = bbox2img[bboxes[0]]
             bbox2 = bbox2img[bboxes[1]]
@@ -76,11 +74,17 @@ if __name__ == "__main__":
         exit(0)
     first_res_dir, second_res_dir, img_pair_classifier_tasks, out_dir = args[0], args[1], args[2], args[3]
 
+    if os.path.isdir(out_dir):
+        shutil.rmtree(out_dir)
+    os.makedirs(out_dir)
+
     # names like img_pair_classifier_000000_bE9.json
     first_res_list = [f for f in os.listdir(first_res_dir) if f.endswith(".json")]
     second_res_list = [f for f in os.listdir(second_res_dir) if f.endswith(".json")]
+    results = {"missed": [], "added": [], "correct": [], "mismatch": []}
 
     for filename in first_res_list:
+        print(filename)
         if filename not in second_res_list:
             print(f"{filename} not in {second_res_list} directory")
             continue
@@ -92,6 +96,8 @@ if __name__ == "__main__":
         task_dir = os.path.join(img_pair_classifier_tasks,
                                 f"task_{filename[len('img_pair_classifier_'):-len('.json')]}")
 
-        bbox2img = collect_statistics(labels1, labels2, task_dir)
-        print_results()
-        draw_errors(bbox2img, task_dir, out_dir)
+        local_results, bbox2img = collect_statistics(labels1, labels2, task_dir)
+        for key, value in local_results.items():
+            results[key].extend(value)
+        draw_errors(bbox2img, local_results, task_dir, out_dir)
+    print_results(results)
