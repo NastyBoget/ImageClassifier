@@ -10,7 +10,8 @@ class TaskMaker:
                  default_label: str,
                  instruction: str,
                  doc: dict,
-                 completed_tasks: dict):
+                 completed_tasks: dict,
+                 config: dict):
         self.default_label = default_label
         self.instruction = instruction
         self.doc = doc
@@ -19,6 +20,7 @@ class TaskMaker:
         self.completed_tasks = completed_tasks
         self.completed_task_ids_for_doc = [c_task_id for c_task_id in completed_tasks
                                            if c_task_id.startswith(self.doc_name)]
+        self.label2color = {item["label"]: item["color"] for item in config["labels"]}
 
     def get_next_task(self) -> Optional[tuple]:
         # TODO order dict
@@ -84,9 +86,12 @@ class TaskMaker:
         else:
             label = self.default_label
         task_id = "{}___{}___{}".format(self.doc_name, line1["uid"], line2["uid"])
+
+        color1 = self.label2color.get(label, (255, 0, 0))
+        color2 = self.label2color.get(label, (0, 0, 255))
         img_filename = get_paired_picture(os.path.join("images", line1["img_name"]),  # TODO images dir
                                           os.path.join("images", line2["img_name"]),
-                                          line1["bbox"], line2["bbox"])
+                                          line1["bbox"], line2["bbox"], color1=color1, color2=color2)
         return task_id, {"img": img_filename, "label": label, "instruction": self.instruction}
 
     def _pair2label(self, first_label: str, second_label: str) -> str:

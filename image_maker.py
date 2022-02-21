@@ -2,9 +2,9 @@ import hashlib
 import json
 import os
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Union
 
-from PIL import ImageDraw, ImageFont, Image
+from PIL import ImageColor, ImageDraw, ImageFont, Image
 
 from config import get_config
 
@@ -18,9 +18,9 @@ def get_concat(im1: Image, im2: Image) -> Image:
 
 def draw_rectangle(image: Image,
                    x_top_left: int, y_top_left: int,
-                   width: int, height: int, color: tuple = (0, 0, 0)) -> Image:
-    if color == "black":
-        color = (0, 0, 0)
+                   width: int, height: int, color: Union[str, tuple] = (0, 0, 0)) -> Image:
+    if isinstance(color, str):
+        color = ImageColor.getrgb(color)
     source_img = deepcopy(image).convert("RGBA")
 
     draw = ImageDraw.Draw(source_img)
@@ -36,6 +36,8 @@ def get_paired_picture(img_name1: str,
                        img_name2: str,
                        bbox1: dict,
                        bbox2: dict,
+                       color1: Union[str, tuple] = (0, 0, 0),
+                       color2: Union[str, tuple] = (0, 0, 0),
                        out_dir: Optional[str] = None,
                        text: Optional[str] = None) -> str:
     # draw bbox1
@@ -43,10 +45,10 @@ def get_paired_picture(img_name1: str,
     # stack pictures
     with Image.open(img_name1) as img1:
         r_img1 = draw_rectangle(img1, bbox1["left"], bbox1["top"], bbox1["width"], bbox1["height"],
-                                color=(255, 0, 0))
+                                color=color1)
     with Image.open(img_name2) as img2:
         r_img2 = draw_rectangle(img2, bbox2["left"], bbox2["top"], bbox2["width"], bbox2["height"],
-                                color=(0, 0, 255))
+                                color=color2)
     paired_img = get_concat(r_img1, r_img2)
     hash_string = img_name1 + img_name2 + json.dumps(bbox1) + json.dumps(bbox2)
     img_name = "{}.png".format(hashlib.md5(hash_string.encode()).hexdigest())

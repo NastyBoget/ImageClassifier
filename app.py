@@ -55,7 +55,7 @@ def read_next_task() -> Optional[tuple]:
     for doc_id, doc in tasks.items():
         if len(doc["data"]) < 2:
             continue
-        task_maker = TaskMaker(default_label, instruction, doc, completed_tasks)
+        task_maker = TaskMaker(default_label, instruction, doc, completed_tasks, config)
         next_task = task_maker.get_next_task()
         if next_task is None:
             continue
