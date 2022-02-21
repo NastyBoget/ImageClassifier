@@ -79,8 +79,32 @@ class TaskMaker:
                 return i
 
     def __make_one_task(self, line1: dict, line2: dict) -> tuple:
+        if "label" in line1 and "label" in line2:
+            label = self._pair2label(line1["label"], line2["label"])
+        else:
+            label = self.default_label
         task_id = "{}___{}___{}".format(self.doc_name, line1["uid"], line2["uid"])
         img_filename = get_paired_picture(os.path.join("images", line1["img_name"]),  # TODO images dir
                                           os.path.join("images", line2["img_name"]),
                                           line1["bbox"], line2["bbox"])
-        return task_id, {"img": img_filename, "label": self.default_label, "instruction": self.instruction}
+        return task_id, {"img": img_filename, "label": label, "instruction": self.instruction}
+
+    def _pair2label(self, first_label: str, second_label: str) -> str:
+        """
+        compares the levels of two lines, if the second line is less, greater or equal to the first one
+        Parameters
+        ----------
+        first_label: str label with the first line level, e.g. "1"; the less level is, the more important the line is
+        second_label: str the same label for the second line
+        Returns comparative label: equal, less or greater
+        -------
+        """
+        try:
+            l1, l2 = int(first_label), int(second_label)
+            if l1 > l2:
+                return "greater"
+            if l1 < l2:
+                return "less"
+            return "equal"
+        except ValueError:
+            return self.default_label
