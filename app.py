@@ -228,6 +228,9 @@ def save_file() -> Response:
 
     save_completed_tasks(completed_tasks)
 
+    shutil.rmtree(config["tmp_images_dir"])
+    os.makedirs(config["tmp_images_dir"])
+
     return redirect("/")  # возвращаем на страницу разметки
 
 
